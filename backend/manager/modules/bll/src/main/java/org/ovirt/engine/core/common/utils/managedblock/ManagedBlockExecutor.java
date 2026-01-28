@@ -1,4 +1,4 @@
-package org.ovirt.engine.core.common.utils.cinderlib;
+package org.ovirt.engine.core.common.utils.managedblock;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -19,9 +19,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Singleton
-public class CinderlibExecutor {
+public class ManagedBlockExecutor {
     EngineLocalConfig config = EngineLocalConfig.getInstance();
-    private static final Logger log = LoggerFactory.getLogger(CinderlibExecutor.class);
+    private static final Logger log = LoggerFactory.getLogger(ManagedBlockExecutor.class);
     private static final String CINDERLIB_PREFIX = "./cinderlib-client.py";
     private static final String CINDERLIB_DIR = "/cinderlib";
     private static final String CINDERLIB_DB_USER = "CINDERLIB_DB_USER";
@@ -43,19 +43,19 @@ public class CinderlibExecutor {
         cinderlibDir = Paths.get(config.getUsrDir().getAbsolutePath() + CINDERLIB_DIR).toFile();
     }
 
-    public CinderlibReturnValue runCommand(CinderlibCommand command, CinderlibCommandParameters params)
+    public ManagedBlockReturnValue runCommand(ManagedBlockCommand command, ManagedBlockCommandParameters params)
             throws Exception {
-        ProcessBuilder cinderlibProcessBuilder = new ProcessBuilder()
+        ProcessBuilder commandProcessBuilder = new ProcessBuilder()
                 .directory(cinderlibDir)
                 .command(generateCommand(command, params))
                 .redirectErrorStream(true);
 
-        Process process = cinderlibProcessBuilder.start();
+        Process process = commandProcessBuilder.start();
         String output = getOutput(process, params.getCorrelationId());
         if (!process.waitFor(Config.getValue(ConfigValues.CinderlibCommandTimeoutInMinutes), TimeUnit.MINUTES)) {
             throw new Exception("cinderlib call timed out");
         }
-        CinderlibReturnValue returnValue = new CinderlibReturnValue(process.exitValue(), output);
+        ManagedBlockReturnValue returnValue = new ManagedBlockReturnValue(process.exitValue(), output);
         if (!returnValue.getSucceed()) {
             log.error("cinderlib execution failed: {}", output);
         } else {
@@ -82,7 +82,7 @@ public class CinderlibExecutor {
         return "";
     }
 
-    private List<String> generateCommand(CinderlibCommand command, CinderlibCommandParameters params) {
+    private List<String> generateCommand(ManagedBlockCommand command, ManagedBlockCommandParameters params) {
         List<String> commandArgs = new ArrayList<>();
         commandArgs.add(CINDERLIB_PREFIX);
         commandArgs.add(command.toString());
@@ -95,7 +95,7 @@ public class CinderlibExecutor {
     }
 
 
-    public enum CinderlibCommand {
+    public enum ManagedBlockCommand {
         CREATE_VOLUME("create_volume"),
         DELETE_VOLUME("delete_volume"),
         CONNECT_VOLUME("connect_volume"),
@@ -111,7 +111,7 @@ public class CinderlibExecutor {
 
         private final String commandName;
 
-        CinderlibCommand(String commandName) {
+        ManagedBlockCommand(String commandName) {
             this.commandName = commandName;
         }
 
