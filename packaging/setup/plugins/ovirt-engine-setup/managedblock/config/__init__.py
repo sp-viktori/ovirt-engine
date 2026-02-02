@@ -7,16 +7,18 @@
 #
 
 
-"""cinderlib core plugin."""
+"""ovirt-host-setup managed block config plugin."""
 
 
 from otopi import util
 
+from . import database
 from . import misc
 
 
 @util.export
 def createPlugins(context):
+    database.Plugin(context=context)
     misc.Plugin(context=context)
 
 

@@ -7,17 +7,19 @@
 #
 
 
-"""ovirt-host-setup cinderlib pki plugin."""
+"""ovirt-host-setup managed block database plugin."""
 
 
 from otopi import util
 
-from . import postgres
+from . import connection
+from . import pgpass
 
 
 @util.export
 def createPlugins(context):
-    postgres.Plugin(context=context)
+    connection.Plugin(context=context)
+    pgpass.Plugin(context=context)
 
 
 # vim: expandtab tabstop=4 shiftwidth=4
