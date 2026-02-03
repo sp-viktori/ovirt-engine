@@ -20,7 +20,7 @@ engine-backup - Backup and restore ovirt-engine environment.
 .br
 \fBdwhdb\fR     Data Warehouse database only.
 .br
-\fBcinderlibdb\fR     Cinderlib database only.
+\fBmanagedblockdb\fR     Managed Block database only.
 .br
 .SH OPTIONS
 .PP
@@ -206,69 +206,69 @@ Set a secured connection for the Data Warehouse database.
 Validate host for the Data Warehouse database.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-compressor\fR=\fICOMPRESSOR\fR
+\fB\-\-managedblock\-db\-compressor\fR=\fICOMPRESSOR\fR
 .RS 4
-Compress the Cinderlib database, same options as --archive-compressor.
+Compress the Managed Block database, same options as --archive-compressor.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-dump\-format\fR=\fIFORMAT\fR
+\fB\-\-managedblock\-db\-dump\-format\fR=\fIFORMAT\fR
 .RS 4
-Cinderlib database dump format.
+Managed Block database dump format.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-restore\-jobs\fR=\fIJOBS\fR
+\fB\-\-managedblock\-db\-restore\-jobs\fR=\fIJOBS\fR
 .RS 4
-Number of restore jobs for the Cinderlib database.
+Number of restore jobs for the Managed Block database.
 .RE
 .PP
-\fB\-\-provision\-cinderlib\-db\fR
+\fB\-\-provision\-managedblock\-db\fR
 .RS 4
-Create a Cinderlib database for restore.
+Create a Managed Block database for restore.
 .RE
 .PP
-\fB\-\-change\-cinderlib\-db\-credentials\fR
+\fB\-\-change\-managedblock\-db\-credentials\fR
 .RS 4
-Activate the following options, to restore the Cinderlib database to a different location etc. If used, existing credentials are ignored.
+Activate the following options, to restore the Managed Block database to a different location etc. If used, existing credentials are ignored.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-host\fR=\fIHOST\fR
+\fB\-\-managedblock\-db\-host\fR=\fIHOST\fR
 .RS 4
-Set Cinderlib database host.
+Set Managed Block database host.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-port\fR=\fIPORT\fR
+\fB\-\-managedblock\-db\-port\fR=\fIPORT\fR
 .RS 4
-Set Cinderlib database port.
+Set Managed Block database port.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-user\fR=\fIUSER\fR
+\fB\-\-managedblock\-db\-user\fR=\fIUSER\fR
 .RS 4
-Set Cinderlib database user.
+Set Managed Block database user.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-passfile\fR=\fIPASS_FILE\fR
+\fB\-\-managedblock\-db\-passfile\fR=\fIPASS_FILE\fR
 .RS 4
-Read Cinderlib database password from file.
+Read Managed Block database password from file.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-password\fR=\fIPASSWORD\fR
+\fB\-\-managedblock\-db\-password\fR=\fIPASSWORD\fR
 .RS 4
-Set Cinderlib database password. If \fIPASSWORD\fR is empty, the password is read interactively.
+Set Managed Block database password. If \fIPASSWORD\fR is empty, the password is read interactively.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-name\fR=\fINAME\fR
+\fB\-\-managedblock\-db\-name\fR=\fINAME\fR
 .RS 4
-Set Cinderlib database name.
+Set Managed Block database name.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-secured\fR
+\fB\-\-managedblock\-db\-secured\fR
 .RS 4
-Set a secured connection for the Cinderlib database.
+Set a secured connection for the Managed Block database.
 .RE
 .PP
-\fB\-\-cinderlib\-db\-secured\-validation\fR
+\fB\-\-managedblock\-db\-secured\-validation\fR
 .RS 4
-Validate host for the Cinderlib database.
+Validate host for the Managed Block database.
 .RE
 .PP
 \fB\-\-no\-restore\-permissions\fR
