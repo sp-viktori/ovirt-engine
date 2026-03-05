@@ -10,17 +10,17 @@ import org.ovirt.engine.core.common.action.ActionType;
 import org.ovirt.engine.core.common.action.AddDiskParameters;
 import org.ovirt.engine.core.common.action.TransferDiskImageParameters;
 import org.ovirt.engine.core.common.action.TransferImageStatusParameters;
-import org.ovirt.engine.core.common.businessentities.profiles.DiskProfile;
 import org.ovirt.engine.core.common.businessentities.StorageDomain;
 import org.ovirt.engine.core.common.businessentities.StorageFormatType;
 import org.ovirt.engine.core.common.businessentities.StoragePool;
+import org.ovirt.engine.core.common.businessentities.profiles.DiskProfile;
 import org.ovirt.engine.core.common.businessentities.storage.Disk;
 import org.ovirt.engine.core.common.businessentities.storage.DiskContentType;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
 import org.ovirt.engine.core.common.businessentities.storage.DiskStorageType;
-import org.ovirt.engine.core.common.businessentities.storage.StorageType;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransfer;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransferPhase;
+import org.ovirt.engine.core.common.businessentities.storage.StorageType;
 import org.ovirt.engine.core.common.businessentities.storage.TransferClientType;
 import org.ovirt.engine.core.common.businessentities.storage.TransferType;
 import org.ovirt.engine.core.common.businessentities.storage.VolumeFormat;
@@ -495,7 +495,7 @@ public class UploadImageModel extends Model implements ICommandTarget {
             StorageDomain selectedSd = getDiskModel().getStorageDomain().getSelectedItem();
             diskParameters.setStorageDomainId(selectedSd.getId());
             if (selectedSd.getStorageType() == StorageType.MANAGED_BLOCK_STORAGE) {
-                log.info("UploadImageModel.createInitParams: upload target is Managed Block Storage domain id=" + selectedSd.getId() + " name=" + selectedSd.getName());
+                log.info("UploadImageModel.createInitParams: upload target is Managed Block Storage domain id=" + selectedSd.getId() + " name=" + selectedSd.getName()); //$NON-NLS-1$ //$NON-NLS-2$
                 if (newDisk instanceof DiskImage) {
                     ((DiskImage) newDisk).setDiskProfileId(null);
                 }

@@ -50,14 +50,14 @@ import org.ovirt.engine.core.common.businessentities.storage.Disk;
 import org.ovirt.engine.core.common.businessentities.storage.DiskBackupMode;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
 import org.ovirt.engine.core.common.businessentities.storage.DiskStorageType;
-import org.ovirt.engine.core.common.businessentities.storage.ManagedBlockStorage;
-import org.ovirt.engine.core.common.businessentities.storage.ManagedBlockStorageDisk;
 import org.ovirt.engine.core.common.businessentities.storage.ImageStatus;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTicket;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTicketInformation;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransfer;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransferBackend;
 import org.ovirt.engine.core.common.businessentities.storage.ImageTransferPhase;
+import org.ovirt.engine.core.common.businessentities.storage.ManagedBlockStorage;
+import org.ovirt.engine.core.common.businessentities.storage.ManagedBlockStorageDisk;
 import org.ovirt.engine.core.common.businessentities.storage.StorageType;
 import org.ovirt.engine.core.common.businessentities.storage.TimeoutPolicyType;
 import org.ovirt.engine.core.common.businessentities.storage.TransferType;
@@ -73,10 +73,10 @@ import org.ovirt.engine.core.common.locks.LockInfo;
 import org.ovirt.engine.core.common.locks.LockingGroup;
 import org.ovirt.engine.core.common.utils.Pair;
 import org.ovirt.engine.core.common.utils.SizeConverter;
-import org.ovirt.engine.core.common.utils.cinderlib.CinderlibCommandParameters;
-import org.ovirt.engine.core.common.utils.cinderlib.CinderlibExecutor;
-import org.ovirt.engine.core.common.vdscommands.AttachManagedBlockStorageVolumeVDSCommandParameters;
+import org.ovirt.engine.core.common.utils.managedblock.ManagedBlockCommandParameters;
+import org.ovirt.engine.core.common.utils.managedblock.ManagedBlockExecutor;
 import org.ovirt.engine.core.common.vdscommands.AddImageTicketVDSCommandParameters;
+import org.ovirt.engine.core.common.vdscommands.AttachManagedBlockStorageVolumeVDSCommandParameters;
 import org.ovirt.engine.core.common.vdscommands.ExtendImageTicketVDSCommandParameters;
 import org.ovirt.engine.core.common.vdscommands.GetImageTicketVDSCommandParameters;
 import org.ovirt.engine.core.common.vdscommands.ImageActionsVDSCommandParameters;
@@ -91,8 +91,8 @@ import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogDirector;
 import org.ovirt.engine.core.dao.DiskDao;
 import org.ovirt.engine.core.dao.ImageDao;
-import org.ovirt.engine.core.dao.CinderStorageDao;
 import org.ovirt.engine.core.dao.ImageTransferDao;
+import org.ovirt.engine.core.dao.ManagedBlockStorageDao;
 import org.ovirt.engine.core.dao.SnapshotDao;
 import org.ovirt.engine.core.dao.StorageDomainDao;
 import org.ovirt.engine.core.dao.VdsDao;
@@ -145,9 +145,9 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     @Inject
     private ResourceManager resourceManager;
     @Inject
-    private CinderlibExecutor cinderlibExecutor;
+    private ManagedBlockExecutor managedBlockExecutor;
     @Inject
-    private CinderStorageDao cinderStorageDao;
+    private ManagedBlockStorageDao managedBlockStorageDao;
 
     private ImageioClient proxyClient;
     private VmBackup backup;
@@ -1557,7 +1557,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
             return;
         }
         Guid storageDomainId = mbsDisk.getStorageIds().get(0);
-        ManagedBlockStorage managedBlockStorage = cinderStorageDao.get(storageDomainId);
+        ManagedBlockStorage managedBlockStorage = managedBlockStorageDao.get(storageDomainId);
         if (managedBlockStorage == null) {
             log.warn("Managed block storage domain '{}' not found for disconnect", storageDomainId);
             return;
@@ -1565,11 +1565,11 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         List<String> extraParams = new ArrayList<>();
         extraParams.add(mbsDisk.getImageId().toString());
         try {
-            CinderlibCommandParameters params = new CinderlibCommandParameters(
+            ManagedBlockCommandParameters params = new ManagedBlockCommandParameters(
                     JsonHelper.mapToJson(managedBlockStorage.getAllDriverOptions(), false),
                     extraParams,
                     getCorrelationId());
-            if (!cinderlibExecutor.runCommand(CinderlibExecutor.CinderlibCommand.DISCONNECT_VOLUME, params)
+            if (!managedBlockExecutor.runCommand(ManagedBlockExecutor.ManagedBlockCommand.DISCONNECT_VOLUME, params)
                     .getSucceed()) {
                 log.warn("Storage adapter DISCONNECT_VOLUME failed for disk '{}' volume '{}'",
                         imageTransfer.getDiskId(), mbsDisk.getImageId());
