@@ -103,7 +103,7 @@ def convert_disks(ova_path):
         vdsm_user = pwd.getpwnam('vdsm')
         os.chown(loop, vdsm_user.pw_uid, vdsm_user.pw_gid)
         try:
-            qemu_cmd = ("qemu-img convert -p -T none -O qcow2 '%s' '%s'"
+            qemu_cmd = ("qemu-img convert -p -T none -O qcow2 -S 512 '%s' '%s'"
                         % (path, loop))
             check_call(['su', '-p', '-c', qemu_cmd, 'vdsm'])
         except CalledProcessError as exc:

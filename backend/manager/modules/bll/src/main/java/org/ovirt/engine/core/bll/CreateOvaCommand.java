@@ -25,6 +25,7 @@ import org.ovirt.engine.core.common.action.ActionReturnValue;
 import org.ovirt.engine.core.common.action.ActionType;
 import org.ovirt.engine.core.common.action.AnsibleCommandParameters;
 import org.ovirt.engine.core.common.action.AnsibleImageMeasureCommandParameters;
+import org.ovirt.engine.core.common.action.ConnectManagedBlockStorageDeviceCommandParameters;
 import org.ovirt.engine.core.common.action.CreateOvaParameters;
 import org.ovirt.engine.core.common.action.VmExternalDataKind;
 import org.ovirt.engine.core.common.businessentities.VM;
@@ -33,18 +34,30 @@ import org.ovirt.engine.core.common.businessentities.VmTemplate;
 import org.ovirt.engine.core.common.businessentities.network.VmNetworkInterface;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
 import org.ovirt.engine.core.common.businessentities.storage.FullEntityOvfData;
+import org.ovirt.engine.core.common.businessentities.storage.ManagedBlockStorage;
+import org.ovirt.engine.core.common.businessentities.storage.StorageType;
 import org.ovirt.engine.core.common.errors.EngineError;
 import org.ovirt.engine.core.common.errors.EngineException;
+import org.ovirt.engine.core.common.interfaces.VDSBrokerFrontend;
 import org.ovirt.engine.core.common.utils.Pair;
 import org.ovirt.engine.core.common.utils.SecretValue;
+import org.ovirt.engine.core.common.utils.managedblock.ManagedBlockCommandParameters;
+import org.ovirt.engine.core.common.utils.managedblock.ManagedBlockExecutor;
+import org.ovirt.engine.core.common.utils.managedblock.ManagedBlockReturnValue;
+import org.ovirt.engine.core.common.vdscommands.AttachManagedBlockStorageVolumeVDSCommandParameters;
+import org.ovirt.engine.core.common.vdscommands.VDSCommandType;
 import org.ovirt.engine.core.common.vdscommands.VDSReturnValue;
 import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.compat.Version;
 import org.ovirt.engine.core.dal.dbbroker.auditloghandling.AuditLogDirector;
+import org.ovirt.engine.core.dao.ManagedBlockStorageDao;
+import org.ovirt.engine.core.dao.StorageDomainDao;
 import org.ovirt.engine.core.dao.VmDao;
 import org.ovirt.engine.core.dao.VmTemplateDao;
 import org.ovirt.engine.core.dao.network.VmNetworkInterfaceDao;
+import org.ovirt.engine.core.utils.JsonHelper;
 import org.ovirt.engine.core.utils.ovf.OvfManager;
+import org.ovirt.engine.core.vdsbroker.vdsbroker.DeviceInfoReturn;
 import org.ovirt.engine.core.vdsbroker.vdsbroker.PrepareImageReturn;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,6 +85,14 @@ public class CreateOvaCommand<T extends CreateOvaParameters> extends CommandBase
     @Inject
     private VmTemplateDao vmTemplateDao;
     @Inject
+    private ManagedBlockStorageDao managedBlockStorageDao;
+    @Inject
+    private ManagedBlockExecutor managedBlockExecutor;
+    @Inject
+    private StorageDomainDao storageDomainDao;
+    @Inject
+    private VDSBrokerFrontend vdsBrokerFrontend;
+    @Inject
     @Typed(SerialChildCommandsExecutionCallback.class)
     private Instance<SerialChildCommandsExecutionCallback> callbackProvider;
 
@@ -95,6 +116,10 @@ public class CreateOvaCommand<T extends CreateOvaParameters> extends CommandBase
         getParameters().setDiskIdToPath(diskIdToPath);
         fillDiskApparentSize(disks, diskIdToPath);
         setSucceeded(true);
+    }
+
+    private boolean isManagedBlockDisk(DiskImage image) {
+        return storageDomainDao.get(image.getStorageIds().get(0)).getStorageType() == StorageType.MANAGED_BLOCK_STORAGE;
     }
 
     private Pair<String, Version> createOvf(Collection<DiskImage> disks) {
@@ -132,7 +157,9 @@ public class CreateOvaCommand<T extends CreateOvaParameters> extends CommandBase
         return disks.stream()
                 .collect(Collectors.toMap(
                         DiskImage::getId,
-                        image -> prepareImage(image).getImagePath()));
+                        image -> isManagedBlockDisk(image)
+                                ? prepareManagedBlockImage(image)
+                                : prepareImage(image).getImagePath()));
     }
 
     private PrepareImageReturn prepareImage(DiskImage image) {
@@ -145,17 +172,116 @@ public class CreateOvaCommand<T extends CreateOvaParameters> extends CommandBase
         return (PrepareImageReturn) vdsRetVal.getReturnValue();
     }
 
+    @SuppressWarnings("unchecked")
+    private String prepareManagedBlockImage(DiskImage image) {
+        Guid sdId = image.getStorageIds().get(0);
+        ManagedBlockStorage mbs = managedBlockStorageDao.get(sdId);
+        Guid tempVolumeId = createVolumeFromSnapshot(mbs, image.getId(), image.getImageId());
+        ConnectManagedBlockStorageDeviceCommandParameters connectParams =
+                new ConnectManagedBlockStorageDeviceCommandParameters();
+        connectParams.setStorageDomainId(sdId);
+        connectParams.setDiskId(tempVolumeId);
+        connectParams.setConnectorInfo(getVds().getConnectorInfo());
+        ActionReturnValue connectResult =
+                runInternalAction(ActionType.ConnectManagedBlockStorageDevice, connectParams);
+        if (!connectResult.getSucceeded()) {
+            deleteManagedBlockVolume(mbs, tempVolumeId);
+            throw new EngineException(EngineError.GeneralException, "Failed to connect managed block storage volume " + tempVolumeId);
+        }
+        Map<String, Object> connectionInfo =
+                (Map<String, Object>) connectResult.getActionReturnValue();
+        AttachManagedBlockStorageVolumeVDSCommandParameters attachParams =
+                new AttachManagedBlockStorageVolumeVDSCommandParameters(
+                    getVds(), connectionInfo, sdId);
+        attachParams.setVolumeId(tempVolumeId);
+        VDSReturnValue attachResult = vdsBrokerFrontend.runVdsCommand(VDSCommandType.AttachManagedBlockStorageVolume, attachParams);
+        if (!attachResult.getSucceeded()) {
+            deleteManagedBlockVolume(mbs, tempVolumeId);
+            throw new EngineException(EngineError.GeneralException, "Failed to attach managed block storage volume " + tempVolumeId);
+        }
+        Map<String, Object> deviceInfo = (Map<String, Object>) attachResult.getReturnValue();
+        String devicePath = (String) deviceInfo.get(DeviceInfoReturn.MANAGED_PATH);
+        if (devicePath == null) {
+            devicePath = (String) deviceInfo.get(DeviceInfoReturn.PATH);
+        }
+        if (devicePath == null) {
+            deleteManagedBlockVolume(mbs, tempVolumeId);
+            throw new EngineException(EngineError.GeneralException, "Failed to get device path for managed block storage volume " + tempVolumeId);
+        }
+        getParameters().getMbsSnapshotImageToTempVolume()
+                .put(image.getImageId(), tempVolumeId);
+        persistCommandIfNeeded();
+        return devicePath;
+    }
+
+    private Guid createVolumeFromSnapshot(ManagedBlockStorage mbs, Guid mainVolumeId, Guid snapshotId) {
+        List<String> extraParams = new ArrayList<>();
+        extraParams.add(mainVolumeId.toString());
+        extraParams.add(snapshotId.toString());
+        try {
+            ManagedBlockCommandParameters params = new ManagedBlockCommandParameters(
+                JsonHelper.mapToJson(mbs.getAllDriverOptions(), false),
+                extraParams,
+                getCorrelationId());
+            ManagedBlockReturnValue result = managedBlockExecutor.runCommand(
+                ManagedBlockExecutor.ManagedBlockCommand.CREATE_VOLUME_FROM_SNAPSHOT, params);
+            if (!result.getSucceed()) {
+                throw new EngineException(EngineError.GeneralException,
+                    "Managed Block CREATE_VOLUME_FROM_SNAPSHOT command failed for snapshot " + snapshotId);
+            }
+            return Guid.createGuidFromString(result.getOutput());
+        } catch (EngineException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new EngineException(EngineError.GeneralException, e, true);
+        }
+    }
+
+    private void deleteManagedBlockVolume(ManagedBlockStorage mbs, Guid volumeId) {
+        List<String> extraParams = new ArrayList<>();
+        extraParams.add(volumeId.toString());
+        try {
+            ManagedBlockCommandParameters params = new ManagedBlockCommandParameters(
+                JsonHelper.mapToJson(mbs.getAllDriverOptions(), false),
+                extraParams,
+                getCorrelationId());
+            managedBlockExecutor.runCommand(
+                ManagedBlockExecutor.ManagedBlockCommand.DELETE_VOLUME, params);
+        } catch (Exception e) {
+            log.error("Exception while deleting managed block volume " + volumeId, e);
+        }
+    }
+
     private void teardownImages(Collection<DiskImage> disks) {
         disks.forEach(this::teardownImage);
     }
 
     private void teardownImage(DiskImage image) {
-        imagesHandler.teardownImage(
-                image.getStoragePoolId(),
-                image.getStorageIds().get(0),
-                image.getId(),
-                image.getImageId(),
-                getParameters().getProxyHostId());
+        if (isManagedBlockDisk(image)) {
+            teardownManagedBlockImage(image);
+        } else {
+            imagesHandler.teardownImage(
+                    image.getStoragePoolId(),
+                    image.getStorageIds().get(0),
+                    image.getId(),
+                    image.getImageId(),
+                    getParameters().getProxyHostId());
+        }
+    }
+
+    private void teardownManagedBlockImage(DiskImage image) {
+        Guid sdId = image.getStorageIds().get(0);
+        Guid tempVolumeId = getParameters().getMbsSnapshotImageToTempVolume().get(image.getImageId());
+        if (tempVolumeId == null) {
+            log.warn("No temp volume found for managed block storage snapshot image {}, skipping teardown", image.getImageId());
+            return;
+        }
+        AttachManagedBlockStorageVolumeVDSCommandParameters detachParams =
+                new AttachManagedBlockStorageVolumeVDSCommandParameters(getVds());
+        detachParams.setVolumeId(tempVolumeId);
+        detachParams.setStorageDomainId(sdId);
+        vdsBrokerFrontend.runVdsCommand(VDSCommandType.DetachManagedBlockStorageVolume, detachParams);
+        deleteManagedBlockVolume(managedBlockStorageDao.get(sdId), tempVolumeId);
     }
 
     private void fillDiskApparentSize(List<DiskImage> disks, Map<Guid, String> diskIdToPath) {
