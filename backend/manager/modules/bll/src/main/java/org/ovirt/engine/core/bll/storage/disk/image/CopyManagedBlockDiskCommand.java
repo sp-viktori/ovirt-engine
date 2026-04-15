@@ -32,6 +32,7 @@ import org.ovirt.engine.core.common.businessentities.ManagedBlockStorageLocation
 import org.ovirt.engine.core.common.businessentities.StorageDomainType;
 import org.ovirt.engine.core.common.businessentities.VdsmImageLocationInfo;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
+import org.ovirt.engine.core.common.businessentities.storage.DiskStorageType;
 import org.ovirt.engine.core.common.businessentities.storage.ExternalLease;
 import org.ovirt.engine.core.common.businessentities.storage.ImageStatus;
 import org.ovirt.engine.core.common.businessentities.storage.LeaseJobStatus;
@@ -87,7 +88,6 @@ public class CopyManagedBlockDiskCommand<T extends CopyImageGroupWithDataCommand
     @Typed(SerialChildCommandsExecutionCallback.class)
     private Instance<SerialChildCommandsExecutionCallback> callbackProvider;
 
-    private StorageDomainType sourceDomainType;
     private StorageDomainType destDomainType;
 
 
@@ -98,7 +98,6 @@ public class CopyManagedBlockDiskCommand<T extends CopyImageGroupWithDataCommand
 
     @Override
     protected void init() {
-        sourceDomainType = storageDomainDao.get(getParameters().getSrcDomain()).getStorageDomainType();
         destDomainType = storageDomainDao.get(getParameters().getDestDomain()).getStorageDomainType();
 
         super.init();
@@ -164,9 +163,11 @@ public class CopyManagedBlockDiskCommand<T extends CopyImageGroupWithDataCommand
             getParameters().setDestImageGroupId(getParameters().getDestinationImageId());
         }
 
-        // Attach source to host (if source is Managed Block Storage)
-        // TODO: handle failures
-        if (sourceDomainType == StorageDomainType.ManagedBlockStorage) {
+        // Attach source only for real MBS disks. chooseDisksSourceDomains() may set the *source*
+        // storage domain id to the destination MBS id when that id is in the template disk's domain
+        // set (optimization), while the entity is still a plain DiskImage (e.g. NFS) — do not cast.
+        if (sourceDisk.getDiskStorageType() == DiskStorageType.MANAGED_BLOCK_STORAGE
+                && sourceDisk instanceof ManagedBlockStorageDisk) {
             String sourcePath = attachVolume((ManagedBlockStorageDisk) sourceDisk);
             getParameters().setSourcePath(sourcePath);
         }
@@ -276,16 +277,18 @@ public class CopyManagedBlockDiskCommand<T extends CopyImageGroupWithDataCommand
 
     private void detachVolume() {
         // TODO: handle detach failures
-        if (sourceDomainType == StorageDomainType.ManagedBlockStorage) {
-            DiskImage sourceDisk = diskImageDao.get(getParameters().getImageId());
+        DiskImage sourceDisk = diskImageDao.get(getParameters().getImageId());
+        if (sourceDisk instanceof ManagedBlockStorageDisk) {
             managedBlockStorageCommandUtil.disconnectManagedBlockStorageDeviceFromHost(sourceDisk,
                     getParameters().getVdsRunningOn());
         }
 
         if (destDomainType == StorageDomainType.ManagedBlockStorage) {
             DiskImage targetDisk = diskImageDao.get(getParameters().getDestinationImageId());
-            managedBlockStorageCommandUtil.disconnectManagedBlockStorageDeviceFromHost(targetDisk,
-                    getParameters().getVdsRunningOn());
+            if (targetDisk != null) {
+                managedBlockStorageCommandUtil.disconnectManagedBlockStorageDeviceFromHost(targetDisk,
+                        getParameters().getVdsRunningOn());
+            }
         }
     }
 
@@ -336,6 +339,9 @@ public class CopyManagedBlockDiskCommand<T extends CopyImageGroupWithDataCommand
 
     private void removeExternalLease() {
         ExternalLease externalLease = externalLeaseDao.get(getJobId());
+        if (externalLease == null) {
+            return;
+        }
         ExternalLeaseParameters params = new ExternalLeaseParameters();
         params.setLeaseId(externalLease.getId());
         params.setStorageDomainId(externalLease.getStorageDomainId());

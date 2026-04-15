@@ -10,7 +10,10 @@ import javax.inject.Inject;
 import org.ovirt.engine.core.bll.context.CommandContext;
 import org.ovirt.engine.core.bll.snapshots.CreateSnapshotFromTemplateCommand;
 import org.ovirt.engine.core.bll.storage.domain.PostDeleteActionHandler;
+import org.ovirt.engine.core.bll.storage.utils.StorageDomainUtils;
+import org.ovirt.engine.core.bll.storage.utils.VdsCommandsHelper;
 import org.ovirt.engine.core.bll.tasks.interfaces.CommandCallback;
+import org.ovirt.engine.core.common.FeatureSupported;
 import org.ovirt.engine.core.common.VdcObjectType;
 import org.ovirt.engine.core.common.action.ActionParametersBase;
 import org.ovirt.engine.core.common.action.ActionType;
@@ -19,6 +22,7 @@ import org.ovirt.engine.core.common.action.CreateCloneOfTemplateParameters;
 import org.ovirt.engine.core.common.asynctasks.AsyncTaskType;
 import org.ovirt.engine.core.common.businessentities.storage.CopyVolumeType;
 import org.ovirt.engine.core.common.businessentities.storage.DiskImage;
+import org.ovirt.engine.core.common.businessentities.storage.VolumeType;
 import org.ovirt.engine.core.common.errors.EngineException;
 import org.ovirt.engine.core.common.vdscommands.CopyImageVDSCommandParameters;
 import org.ovirt.engine.core.common.vdscommands.VDSCommandType;
@@ -38,6 +42,8 @@ public class CreateCloneOfTemplateCommand<T extends CreateCloneOfTemplateParamet
     private PostDeleteActionHandler postDeleteActionHandler;
     @Inject
     private StorageDomainDao storageDomainDao;
+    @Inject
+    private VdsCommandsHelper vdsCommandsHelper;
     @Inject
     @Typed(ConcurrentChildCommandsExecutionCallback.class)
     private Instance<ConcurrentChildCommandsExecutionCallback> callbackProvider;
@@ -74,10 +80,29 @@ public class CreateCloneOfTemplateCommand<T extends CreateCloneOfTemplateParamet
         getParameters().setStoragePoolId(storagePoolID);
 
         if (isDataOperationsByHSM()) {
+            Guid destStorageDomainId = getDestinationStorageDomainId();
+            boolean destIsMbs = StorageDomainUtils.isManagedBlockStorage(storageDomainDao, destStorageDomainId);
+            // #region agent log — NDJSON under $HOME/.cursor/ (e.g. /home/almalinux/.cursor/ on your VM)
+            java.io.File agentLogFile =
+                    new java.io.File(System.getProperty("user.home"), ".cursor/debug-3b7973.log");
+            java.io.File agentLogDir = agentLogFile.getParentFile();
+            if (agentLogDir != null && !agentLogDir.isDirectory()) {
+                agentLogDir.mkdirs();
+            }
+            try (java.io.FileWriter fw = new java.io.FileWriter(agentLogFile, true)) {
+                fw.write(String.format(
+                        "{\"sessionId\":\"3b7973\",\"hypothesisId\":\"H1\",\"location\":\"CreateCloneOfTemplateCommand.performImageVdsmOperation\",\"message\":\"hsmCloneBranch\",\"data\":{\"isDataOperationsByHSM\":true,\"destStorageDomainId\":\"%s\",\"destIsMbs\":%s},\"timestamp\":%d}%n",
+                        destStorageDomainId,
+                        destIsMbs,
+                        System.currentTimeMillis()));
+            } catch (Exception e) {
+                log.debug("debug log write failed", e);
+            }
+            // #endregion
             CopyImageGroupWithDataCommandParameters p = new CopyImageGroupWithDataCommandParameters(
                     storagePoolID,
                     getParameters().getStorageDomainId(),
-                    getDestinationStorageDomainId(),
+                    destStorageDomainId,
                     getDiskImage().getId(),
                     getImage().getImageId(),
                     newDiskImage.getId(),
@@ -89,7 +114,17 @@ public class CreateCloneOfTemplateCommand<T extends CreateCloneOfTemplateParamet
             p.setParentParameters(getParameters());
             p.setParentCommand(getActionType());
             p.setEndProcedure(ActionParametersBase.EndProcedure.COMMAND_MANAGED);
-            runInternalAction(ActionType.CopyImageGroupWithData, p);
+            // VDSM volume ops (CopyImageGroupWithData) do not apply to MBS; use the same path as
+            // CopyImageGroupCommand.performStorageOperation for NFS/file block -> MBS.
+            if (destIsMbs) {
+                Guid vds = vdsCommandsHelper.getHostForExecution(storagePoolID,
+                        host -> FeatureSupported.isHostSupportsMBSCopy(host));
+                p.setVdsRunningOn(vds);
+                p.setDestinationVolumeType(VolumeType.Preallocated);
+                runInternalAction(ActionType.CopyManagedBlockDisk, p);
+            } else {
+                runInternalAction(ActionType.CopyImageGroupWithData, p);
+            }
             return true;
         } else {
             Guid taskId = persistAsyncTaskPlaceHolder(ActionType.AddVmFromTemplate);
