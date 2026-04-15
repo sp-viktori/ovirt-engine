@@ -25,6 +25,7 @@ import org.ovirt.engine.core.bll.quota.QuotaStorageConsumptionParameter;
 import org.ovirt.engine.core.bll.quota.QuotaStorageDependent;
 import org.ovirt.engine.core.bll.snapshots.SnapshotsValidator;
 import org.ovirt.engine.core.bll.storage.disk.image.CopyImageGroupCommand;
+import org.ovirt.engine.core.bll.storage.utils.StorageDomainUtils;
 import org.ovirt.engine.core.bll.tasks.interfaces.CommandCallback;
 import org.ovirt.engine.core.bll.utils.PermissionSubject;
 import org.ovirt.engine.core.bll.validator.QuotaValidator;
@@ -730,7 +731,7 @@ public class MoveOrCopyDiskCommand<T extends MoveOrCopyImageGroupParameters> ext
     }
 
     private boolean isManagedBlockCopy() {
-        return storageDomainDao.get(getParameters().getDestDomainId()).getStorageType() == StorageType.MANAGED_BLOCK_STORAGE;
+        return StorageDomainUtils.isManagedBlockStorage(storageDomainDao, getParameters().getDestDomainId());
     }
 
     protected QuotaValidator createQuotaValidator(Guid quotaId) {

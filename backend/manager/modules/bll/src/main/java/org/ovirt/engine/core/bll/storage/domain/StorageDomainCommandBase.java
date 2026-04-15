@@ -441,7 +441,7 @@ public abstract class StorageDomainCommandBase<T extends StorageDomainParameters
     }
 
     protected boolean isManagedBlockStorageDomain() {
-        return getStorageDomain().getStorageType().isManagedBlockStorage();
+        return getStorageDomain().isManagedBlockStorage();
     }
 
     protected EventQueue getEventQueue() {

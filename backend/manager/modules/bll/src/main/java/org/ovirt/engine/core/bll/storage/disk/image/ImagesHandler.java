@@ -22,6 +22,7 @@ import org.apache.commons.lang.StringUtils;
 import org.ovirt.engine.core.bll.context.CompensationContext;
 import org.ovirt.engine.core.bll.profiles.DiskProfileHelper;
 import org.ovirt.engine.core.bll.storage.connection.StorageHelperDirector;
+import org.ovirt.engine.core.bll.storage.utils.StorageDomainUtils;
 import org.ovirt.engine.core.bll.storage.utils.VdsCommandsHelper;
 import org.ovirt.engine.core.bll.utils.VmDeviceUtils;
 import org.ovirt.engine.core.bll.validator.storage.StorageDomainValidator;
@@ -1110,7 +1111,9 @@ public class ImagesHandler {
             nextParentId = Guid.newGuid();
             newImage.setImageId(nextParentId);
             newImage.setVmSnapshotId(null);
-            diskProfileHelper.setAndValidateDiskProfiles(Map.of(newImage, targetStorageDomainID), user);
+            if (!StorageDomainUtils.isManagedBlockStorage(storageDomainDao, targetStorageDomainID)) {
+                diskProfileHelper.setAndValidateDiskProfiles(Map.of(newImage, targetStorageDomainID), user);
+            }
             oldToNewChain.put(diskImage, newImage);
         }
 

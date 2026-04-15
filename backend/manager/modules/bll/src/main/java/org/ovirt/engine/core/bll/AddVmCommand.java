@@ -39,6 +39,7 @@ import org.ovirt.engine.core.bll.quota.QuotaVdsDependent;
 import org.ovirt.engine.core.bll.storage.disk.image.DisksFilter;
 import org.ovirt.engine.core.bll.storage.disk.image.ImagesHandler;
 import org.ovirt.engine.core.bll.storage.utils.BlockStorageDiscardFunctionalityHelper;
+import org.ovirt.engine.core.bll.storage.utils.StorageDomainUtils;
 import org.ovirt.engine.core.bll.tasks.interfaces.CommandCallback;
 import org.ovirt.engine.core.bll.utils.IconUtils;
 import org.ovirt.engine.core.bll.utils.PermissionSubject;
@@ -891,7 +892,11 @@ public class AddVmCommand<T extends AddVmParameters> extends VmManagementCommand
                     ONLY_NOT_SHAREABLE,
                     ONLY_ACTIVE);
             for (DiskImage diskImage : diskImages) {
-                map.put(diskImage, diskImage.getStorageIds().get(0));
+                Guid storageDomainId = diskImage.getStorageIds().get(0);
+                if (StorageDomainUtils.isManagedBlockStorage(storageDomainDao, storageDomainId)) {
+                    continue;
+                }
+                map.put(diskImage, storageDomainId);
             }
             return validate(diskProfileHelper.setAndValidateDiskProfiles(map, getCurrentUser()));
         }

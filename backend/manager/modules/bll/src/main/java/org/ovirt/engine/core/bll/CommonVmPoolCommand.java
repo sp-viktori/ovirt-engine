@@ -24,6 +24,7 @@ import org.ovirt.engine.core.bll.quota.QuotaConsumptionParameter;
 import org.ovirt.engine.core.bll.quota.QuotaStorageConsumptionParameter;
 import org.ovirt.engine.core.bll.quota.QuotaStorageDependent;
 import org.ovirt.engine.core.bll.storage.disk.image.ImagesHandler;
+import org.ovirt.engine.core.bll.storage.utils.StorageDomainUtils;
 import org.ovirt.engine.core.bll.tasks.interfaces.CommandCallback;
 import org.ovirt.engine.core.bll.utils.IconUtils;
 import org.ovirt.engine.core.bll.utils.VmDeviceUtils;
@@ -598,7 +599,11 @@ public abstract class CommonVmPoolCommand<T extends AddVmPoolParameters> extends
         if (diskInfoDestinationMap != null && !diskInfoDestinationMap.isEmpty()) {
             Map<DiskImage, Guid> map = new HashMap<>();
             for (DiskImage diskImage : diskInfoDestinationMap.values()) {
-                map.put(diskImage, diskImage.getStorageIds().get(0));
+                Guid storageDomainId = diskImage.getStorageIds().get(0);
+                if (StorageDomainUtils.isManagedBlockStorage(storageDomainDao, storageDomainId)) {
+                    continue;
+                }
+                map.put(diskImage, storageDomainId);
             }
             return validate(diskProfileHelper.setAndValidateDiskProfiles(map, getCurrentUser()));
         }

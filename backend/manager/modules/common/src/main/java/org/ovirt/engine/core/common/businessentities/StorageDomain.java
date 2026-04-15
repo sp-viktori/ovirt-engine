@@ -344,6 +344,10 @@ public class StorageDomain implements Queryable, BusinessEntityWithStatus<Guid, 
         return getStorageType().isShared();
     }
 
+    public boolean isManagedBlockStorage() {
+        return getStorageType().isManagedBlockStorage();
+    }
+
     private StorageDomainSharedStatus storageDomainSharedStatus;
 
     public StorageDomainSharedStatus getStorageDomainSharedStatus() {
