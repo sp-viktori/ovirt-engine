@@ -47,6 +47,7 @@ public class ManagedBlockStorageDomainValidator {
                 ActionType.CopyImageGroupWithData,
                 ActionType.CopyManagedBlockDisk,
                 ActionType.MoveOrCopyDisk,
+                ActionType.TransferDiskImage,
                 ActionType.ExportVmToOva,
                 ActionType.ExportVmTemplateToOva
         ));
