@@ -19,6 +19,7 @@ public class ManagedBlockStorageDomainValidator {
         allowedStorageOperations = new HashSet<>();
         allowedStorageOperations.addAll(Arrays.asList(
                 ActionType.AddDisk,
+                ActionType.AddDiskToTemplate,
                 ActionType.AttachDiskToVm,
                 ActionType.DetachDiskFromVm,
                 ActionType.RemoveDisk,
@@ -48,6 +49,7 @@ public class ManagedBlockStorageDomainValidator {
                 ActionType.CopyManagedBlockDisk,
                 ActionType.MoveOrCopyDisk,
                 ActionType.TransferDiskImage,
+                ActionType.ImportVmFromOva,
                 ActionType.ExportVmToOva,
                 ActionType.ExportVmTemplateToOva
         ));
