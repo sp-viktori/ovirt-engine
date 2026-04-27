@@ -29,7 +29,8 @@ public class TransferDiskImageParameters extends ImagesActionsParametersBase {
     // Transfer only specified image data instead of entire image chain.
     private boolean shallow;
 
-    // For browser upload when source format != destination: copy task and new image/volume ids.
+    // For browser upload when source format != destination: internal conversion progress.
+    private boolean conversionStarted;
     private Guid copyTaskId;
     private Guid convertedImageId;
     private Guid convertedVolumeId;
@@ -159,6 +160,14 @@ public class TransferDiskImageParameters extends ImagesActionsParametersBase {
 
     public void setShallow(boolean shallow) {
         this.shallow = shallow;
+    }
+
+    public boolean isConversionStarted() {
+        return conversionStarted;
+    }
+
+    public void setConversionStarted(boolean conversionStarted) {
+        this.conversionStarted = conversionStarted;
     }
 
     public Guid getCopyTaskId() {

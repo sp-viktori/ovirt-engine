@@ -799,9 +799,6 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
             case FINISHED_CLEANUP:
                 handleFinishedCleanup();
                 break;
-            case CONVERTING:
-                handleConverting(context);
-                break;
             default:
                 // UNKNOWN, FINISHED_SUCCESS, FINISHED_FAILURE - no action
                 break;
@@ -1077,6 +1074,11 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
     private void handleFinalizingSuccess(final StateContext context) {
         log.info("Finalizing successful image transfer '{}' for {}", getCommandId(), getTransferDescription());
 
+        if (getParameters().isConversionStarted()) {
+            handleUploadConversion(context);
+            return;
+        }
+
         ImageStatus nextImageStatus = ImageStatus.OK;
 
         // If stopping the session did not succeed, don't change the transfer state.
@@ -1094,9 +1096,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
                         getCommandId(), getParameters().getSourceVolumeFormat(), getParameters().getVolumeFormat());
                 if (isManagedBlockStorageForTransfer()) {
                     boolean started = startMbsUploadConversion(context);
-                    if (started) {
-                        updateEntityPhase(ImageTransferPhase.CONVERTING);
-                    } else {
+                    if (!started) {
                         nextImageStatus = ImageStatus.ILLEGAL;
                         updateEntityPhase(ImageTransferPhase.FINALIZING_FAILURE);
                         tearDownImage(context.entity.getVdsId(), context.entity.getBackupId());
@@ -1148,7 +1148,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
 
     /**
      * Start MBS conversion: create destination volume, connect and attach on host.
-     * Persists convertedVolumeId for handleConverting.
+     * Persists convertedVolumeId for the next FINALIZING_SUCCESS iteration.
      */
     private boolean startMbsUploadConversion(StateContext context) {
         Guid sdId = getStorageDomainId();
@@ -1199,6 +1199,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
 
         try {
             getParameters().setConvertedVolumeId(dstVolId);
+            getParameters().setConversionStarted(true);
             persistCommand(getParameters().getParentCommand(), true);
             log.info("Started MBS upload conversion for transfer '{}': convertedVolumeId={}",
                     getCommandId(), dstVolId);
@@ -1326,7 +1327,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
         }
     }
 
-    private void handleConverting(StateContext context) {
+    private void handleUploadConversion(StateContext context) {
         // MBS: synchronous convert (no copy task)
         if (isManagedBlockStorageForTransfer() && getParameters().getConvertedVolumeId() != null) {
             // Run convert (synchronous) on host
@@ -1371,7 +1372,7 @@ public class TransferDiskImageCommand<T extends TransferDiskImageParameters> ext
 
         Guid copyTaskId = getParameters().getCopyTaskId();
         if (copyTaskId == null) {
-            log.error("Conversion phase but no copy task id for transfer '{}'", getCommandId());
+            log.error("Upload conversion started but no copy task id for transfer '{}'", getCommandId());
             updateEntityPhase(ImageTransferPhase.FINALIZING_FAILURE);
             setCommandStatus(CommandStatus.FAILED);
             return;
