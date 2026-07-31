@@ -51,7 +51,9 @@ public class ManagedBlockStorageDomainValidator {
                 ActionType.MbsTransferDiskImage,
                 ActionType.ImportVmFromOva,
                 ActionType.MbsImportVmFromOva,
-                ActionType.MbsImportVmTemplateFromOva
+                ActionType.MbsImportVmTemplateFromOva,
+                ActionType.ExportVmToOva,
+                ActionType.ExportVmTemplateToOva
         ));
         EngineLocalConfig config = EngineLocalConfig.getInstance();
         isDataBaseInitialized = Boolean.parseBoolean(config.getProperty(MANAGEDBLOCK_DB_ENABLE));
