@@ -224,17 +224,14 @@ public class ImportVmTemplateFromOvaCommand<T extends ImportVmTemplateFromOvaPar
     protected void enrichExtractOvaParameters(ConvertOvaParameters parameters) {
     }
 
-    private List<String> buildOvaTarNamesByIndex() {
+    private Map<Guid, String> buildOvaTarNameByDiskId() {
         Map<Guid, Guid> tarNameByDiskId = getParameters().getImageMappings();
         if (tarNameByDiskId == null || tarNameByDiskId.isEmpty()) {
             return null;
         }
-        return getVmTemplate().getDiskList().stream()
-                .map(d -> {
-                    Guid tarName = tarNameByDiskId.get(d.getId());
-                    return tarName != null ? tarName.toString() : null;
-                })
-                .collect(Collectors.toList());
+        return tarNameByDiskId.entrySet().stream()
+                .filter(e -> e.getKey() != null && e.getValue() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toString()));
     }
 
     private void convert() {
@@ -264,7 +261,7 @@ public class ImportVmTemplateFromOvaCommand<T extends ImportVmTemplateFromOvaPar
         parameters.setParentParameters(getParameters());
         parameters.setEndProcedure(EndProcedure.COMMAND_MANAGED);
         parameters.setVmEntityType(VmEntityType.TEMPLATE);
-        parameters.setOvaTarNamesByIndex(buildOvaTarNamesByIndex());
+        parameters.setOvaTarNameByDiskId(buildOvaTarNameByDiskId());
         parameters.setTemplateDiskIdsForExtract(getParameters().getTemplateDiskIdsForOvaExtract());
         enrichExtractOvaParameters(parameters);
         return parameters;

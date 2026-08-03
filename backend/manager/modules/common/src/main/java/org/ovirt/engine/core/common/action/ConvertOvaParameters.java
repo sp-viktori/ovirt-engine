@@ -12,7 +12,7 @@ public class ConvertOvaParameters extends ConvertVmParameters {
     private VmEntityType vmEntityType = VmEntityType.VM;
     private Map<Guid, Map<String, Object>> preAttachedManagedBlockDevicesByDiskId;
     private List<Guid> templateDiskIdsForExtract;
-    private List<String> ovaTarNamesByIndex;
+    private Map<Guid, String> ovaTarNameByDiskId;
 
     public ConvertOvaParameters() {
     }
@@ -54,11 +54,16 @@ public class ConvertOvaParameters extends ConvertVmParameters {
         this.templateDiskIdsForExtract = templateDiskIdsForExtract;
     }
 
-    public List<String> getOvaTarNamesByIndex() {
-        return ovaTarNamesByIndex;
+    /**
+     * OVA tar member name per disk id. Keyed rather than positional: the disk
+     * order the extract works from is not the order the import command built its
+     * mapping in, so pairing them by index silently mismatches disks.
+     */
+    public Map<Guid, String> getOvaTarNameByDiskId() {
+        return ovaTarNameByDiskId;
     }
 
-    public void setOvaTarNamesByIndex(List<String> ovaTarNamesByIndex) {
-        this.ovaTarNamesByIndex = ovaTarNamesByIndex;
+    public void setOvaTarNameByDiskId(Map<Guid, String> ovaTarNameByDiskId) {
+        this.ovaTarNameByDiskId = ovaTarNameByDiskId;
     }
 }

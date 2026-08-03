@@ -37,6 +37,7 @@ import org.ovirt.engine.core.common.utils.ansible.AnsibleReturnValue;
 import org.ovirt.engine.core.common.utils.ansible.AnsibleRunnerClient;
 import org.ovirt.engine.core.common.vdscommands.VDSReturnValue;
 import org.ovirt.engine.core.compat.CommandStatus;
+import org.ovirt.engine.core.compat.Guid;
 import org.ovirt.engine.core.dao.DiskDao;
 import org.ovirt.engine.core.dao.VmDao;
 import org.ovirt.engine.core.utils.EngineLocalConfig;
@@ -203,18 +204,29 @@ public class ExtractOvaCommand<T extends ConvertOvaParameters> extends VmCommand
      * @return JSON map keyed by OVA tar member name: {tarName: {path, format}}
      */
     private String prepareDisksJson(List<DiskImage> diskList, List<String> diskPaths) {
-        List<String> tarNames = getParameters().getOvaTarNamesByIndex();
-        if (tarNames == null || tarNames.size() != diskList.size()) {
+        Map<Guid, String> tarNameByDiskId = getParameters().getOvaTarNameByDiskId();
+        if (tarNameByDiskId == null || tarNameByDiskId.isEmpty()) {
             throw new EngineException(
                     EngineError.GeneralException,
-                    "OVA extract: ovaTarNamesByIndex missing or size mismatch with disk list");
+                    "OVA extract: ovaTarNameByDiskId is missing");
         }
         Map<String, Map<String, String>> entries = new LinkedHashMap<>();
         for (int i = 0; i < diskList.size(); i++) {
+            DiskImage disk = diskList.get(i);
+            // Look the member up by disk id. diskPaths follows getDiskList(), while
+            // the mapping was built from the import command's own disk list, and the
+            // two orders need not agree -- pairing by index silently swaps disks,
+            // which lands each disk's contents in another disk's volume.
+            String tarName = tarNameByDiskId.get(disk.getId());
+            if (StringUtils.isEmpty(tarName)) {
+                throw new EngineException(
+                        EngineError.GeneralException,
+                        "OVA extract: no OVA member mapped for disk " + disk.getId());
+            }
             Map<String, String> entry = new HashMap<>();
             entry.put("path", diskPaths.get(i));
-            entry.put("format", diskList.get(i).getVolumeFormat() == VolumeFormat.COW ? "qcow2" : "raw");
-            entries.put(tarNames.get(i), entry);
+            entry.put("format", disk.getVolumeFormat() == VolumeFormat.COW ? "qcow2" : "raw");
+            entries.put(tarName, entry);
         }
         try {
             return encode(new ObjectMapper().writeValueAsString(entries));
